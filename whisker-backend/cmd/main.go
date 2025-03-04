@@ -43,6 +43,8 @@ func configureLogging(logLevel string) {
 		level = logrus.WarnLevel
 	}
 
+	logrus.Infof("Logging level set to %s", level)
+
 	logrus.SetLevel(level)
 }
 

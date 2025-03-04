@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-playground/form"
@@ -50,6 +51,7 @@ func init() {
 	headerDecoder.SetMode(form.ModeExplicit)
 
 	RegisterCustomDecodeTypeFunc(decodeUUID)
+	RegisterCustomDecodeTypeFunc(decodeUUID)
 }
 
 func RegisterCustomDecodeTypeFunc[E any](fn func(vals []string) (E, error)) {
@@ -61,6 +63,21 @@ func RegisterCustomDecodeTypeFunc[E any](fn func(vals []string) (E, error)) {
 	urlPathDecoder.RegisterCustomTypeFunc(f, typ)
 	urlQueryDecoder.RegisterCustomTypeFunc(f, typ)
 	headerDecoder.RegisterCustomTypeFunc(f, typ)
+}
+
+func RegisterURLQueryJSONType[T any]() {
+	RegisterCustomDecodeTypeFunc(func(vals []string) (T, error) {
+		var obj T
+		jsonStr, err := url.QueryUnescape(vals[0])
+		if err != nil {
+			return obj, err
+		}
+		
+		if err := json.Unmarshal([]byte(jsonStr), &obj); err != nil {
+			return obj, err
+		}
+		return obj, nil
+	})
 }
 
 // DecodeAndValidateRequestParams decodes the request in the specific RequestParam type, and validates the fields based on
