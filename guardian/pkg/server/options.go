@@ -47,3 +47,10 @@ func WithConnectionRetryInterval(connRetryInterval time.Duration) Option {
 		return nil
 	}
 }
+
+func WithListenPort(port string) Option {
+	return func(c *server) error {
+		c.listenPort = port
+		return nil
+	}
+}
