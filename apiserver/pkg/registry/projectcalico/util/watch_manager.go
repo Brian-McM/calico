@@ -85,9 +85,11 @@ func (m *WatchManager) OnUpdates(updates []api.Update) {
 				}
 				logrus.WithFields(logrus.Fields{"id": record.ID, "Kind": record.Kind}).Debug("Closing watch")
 				record.Watch.Stop()
+				// Delete in place: AddWatch and monitorWatch use the map concurrently, so
+				// replacing it would race them.
+				m.watchRecords.Delete(k)
 				return true
 			})
-			m.watchRecords = sync.Map{}
 		}
 	}
 }
