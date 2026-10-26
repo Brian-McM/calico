@@ -252,3 +252,45 @@ func TestAPIRetryBudget(t *testing.T) {
 	}
 	g.Expect(total).To(BeNumerically(">=", 90*time.Second))
 }
+
+// A create the server stored before dropping the connection comes back as AlreadyExists
+// on the retry; that is the caller's object, not a collision.
+func TestWithRetryCreateStoredBeforeRetriableError(t *testing.T) {
+	g := NewWithT(t)
+	shrinkRetry(t)
+
+	creates := 0
+	base := newFakeClient(t)
+	c := WithRetry(interceptor.NewClient(base, interceptor.Funcs{
+		Create: func(ctx context.Context, cli ctrlclient.WithWatch, obj ctrlclient.Object, opts ...ctrlclient.CreateOption) error {
+			creates++
+			if creates == 1 {
+				// Stored, but the response is lost, so obj is left as the caller sent it.
+				if err := cli.Create(ctx, obj.DeepCopyObject().(ctrlclient.Object), opts...); err != nil {
+					return err
+				}
+				return apierrors.NewServiceUnavailable("error trying to reach service: unexpected EOF")
+			}
+			return cli.Create(ctx, obj, opts...)
+		},
+	}))
+
+	tier := v3.NewTier()
+	tier.Name = "e2e-tier"
+	g.Expect(c.Create(context.Background(), tier)).To(Succeed())
+	g.Expect(creates).To(Equal(2))
+	g.Expect(tier.ResourceVersion).NotTo(BeEmpty())
+}
+
+func TestWithRetryCreateAlreadyExistsWithoutRetry(t *testing.T) {
+	g := NewWithT(t)
+	shrinkRetry(t)
+
+	existing := v3.NewTier()
+	existing.Name = "e2e-tier"
+	c := WithRetry(newFakeClient(t, existing))
+
+	tier := v3.NewTier()
+	tier.Name = "e2e-tier"
+	g.Expect(apierrors.IsAlreadyExists(c.Create(context.Background(), tier))).To(BeTrue())
+}

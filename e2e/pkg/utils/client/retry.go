@@ -72,8 +72,15 @@ func (c *retryClient) List(ctx context.Context, list client.ObjectList, opts ...
 }
 
 func (c *retryClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+	retried := false
 	return c.do(func() error {
-		return c.Client.Create(ctx, obj, opts...)
+		err := c.Client.Create(ctx, obj, opts...)
+		if apierrors.IsAlreadyExists(err) && retried {
+			// The attempt that failed may have been stored before the server went away.
+			return c.Client.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+		}
+		retried = RetriableAPIError(err)
+		return err
 	})
 }
 
